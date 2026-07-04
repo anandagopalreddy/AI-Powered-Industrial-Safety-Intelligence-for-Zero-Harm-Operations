@@ -110,23 +110,15 @@ Each source is independently analyzed and then combined using a Compound Risk De
 ## 📂 Project Structure
 
 ```
-Zero-Harm/
-│
-├── backend/
-│   ├── main.py
-│   ├── risk_engine.py
-│   ├── data_simulator.py
-│   ├── models.py
-│   ├── requirements.txt
-│
-├── frontend/
-│   ├── index.html
-│   ├── style.css
-│   ├── script.js
-│
-├── README.md
-└── LICENSE
-```
+ET/
+├── data_simulator.py      # Generates industrial simulation data
+├── risk_engine.py         # Compound risk detection engine
+├── models.py              # Pydantic data models
+├── main.py                # FastAPI backend
+├── index.html             # Dashboard UI
+├── requirements.txt       # Python dependencies
+├── README.md              # Project documentation
+└── __pycache__/           # Python cache (auto-generated)
 
 ---
 
