@@ -110,7 +110,7 @@ Each source is independently analyzed and then combined using a Compound Risk De
 ## 📂 Project Structure
 
 ```
-ET/
+Zero-Harm/
 ├── data_simulator.py      # Generates industrial simulation data
 ├── risk_engine.py         # Compound risk detection engine
 ├── models.py              # Pydantic data models
