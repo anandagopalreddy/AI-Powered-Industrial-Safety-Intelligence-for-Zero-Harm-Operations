@@ -1,0 +1,13 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+scikit-learn==1.5.2
+numpy==2.1.1
+reportlab==4.2.5
+pydantic==2.9.2
+python-multipart==0.0.12
+
+# Optional — only required for real (non-simulated) PPE detection in
+# vision_agent.py. Needs a PPE-fine-tuned .pt model file too; see that
+# module's docstring for why it ships in simulated mode by default.
+# ultralytics==8.3.0
+# Pillow==10.4.0
