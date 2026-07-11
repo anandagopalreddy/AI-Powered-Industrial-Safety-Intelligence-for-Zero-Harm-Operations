@@ -263,19 +263,6 @@ labelled simulated/structured mode rather than a fully trained model or general 
 | Scalability | 15% | Stateless FastAPI service, independent per-zone assessment, rolling in-memory history with a clear DB upgrade path |
 | User Experience | 15% | Live geospatial heatmap, explainable alerts, one-click incident reports, and at-a-glance KPI cards |
 
-## 🎬 Suggested Demo Flow (3–4 minutes)
-
-1. **Problem** (30s) — Vizag incident, silo gap, DGFASLI numbers.
-2. **Baseline dashboard** — all zones green, Plant Safety Score near 100%.
-3. **Trigger an incident** — watch the zone go CRITICAL, a toast notification pop up,
-   and the Incident Timeline panel log each step in order (maintenance → permit → gas
-   rising → risk change) as it happens.
-4. **Download the incident report** — show the generated PDF.
-5. **Ask the AI Copilot** — "Why is [zone] critical?" and "Recommend corrective action for [zone]."
-6. **Show benchmark metrics** — Detection Rate, False Negatives, live from `/api/benchmark`.
-7. **Show the business impact panel** — pointing out the "ILLUSTRATIVE ESTIMATE" badge.
-8. **Close on scalability** — the architecture diagram above, and the roadmap section of the documentation.
-
 ## 🚫 What We Deliberately Did Not Fake
 
 A few tempting additions were considered and specifically **not** built, because they
