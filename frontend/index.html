@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Zero-Harm — Plant Safety Intelligence</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #0c1210;
+    --panel: #131b18;
+    --panel-border: #24322c;
+    --text: #dbe4de;
+    --text-dim: #839289;
+    --mono: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+    --sans: "Segoe UI", Roboto, Arial, sans-serif;
+    --low: #2ecc71;
+    --moderate: #f5a623;
+    --high: #e8672c;
+    --critical: #e5393b;
+    --hazard: #f4c430;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 22px;
+    border-bottom: 3px solid var(--hazard);
+    background: repeating-linear-gradient(135deg, #171f1b 0 14px, #131b18 14px 28px);
+  }
+  header h1 {
+    font-size: 18px;
+    letter-spacing: 1.5px;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  header h1 span { color: var(--hazard); }
+  #clock {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  main {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 18px;
+    padding: 18px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    margin: 0 0 12px 0;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 8px;
+  }
+  #zone-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+  }
+  .zone-tile {
+    position: relative;
+    border-radius: 4px;
+    padding: 12px;
+    min-height: 108px;
+    border: 1px solid var(--panel-border);
+    background: #0f1614;
+    transition: box-shadow 0.4s, border-color 0.4s;
+    overflow: hidden;
+  }
+  .zone-tile .name { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .zone-tile .hazard { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .zone-tile .score { font-family: var(--mono); font-size: 26px; margin-top: 10px; }
+  .zone-tile .band { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
+  .zone-tile.LOW { border-color: var(--low); box-shadow: 0 0 0px transparent; }
+  .zone-tile.MODERATE { border-color: var(--moderate); }
+  .zone-tile.HIGH { border-color: var(--high); box-shadow: 0 0 14px -4px var(--high); }
+  .zone-tile.CRITICAL { border-color: var(--critical); box-shadow: 0 0 22px -2px var(--critical); animation: pulse 1.4s infinite; }
+  .zone-tile.CRITICAL::after {
+    content: "";
+    position: absolute; top: -4px; right: -22px;
+    width: 90px; height: 16px;
+    background: repeating-linear-gradient(45deg, var(--hazard) 0 8px, #111 8px 16px);
+    transform: rotate(45deg);
+  }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 22px -2px var(--critical); } 50% { box-shadow: 0 0 6px -2px var(--critical); } }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .dot.LOW { background: var(--low); }
+  .dot.MODERATE { background: var(--moderate); }
+  .dot.HIGH { background: var(--high); }
+  .dot.CRITICAL { background: var(--critical); }
+
+  #alert-feed { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
+  .alert-card {
+    border-left: 4px solid var(--panel-border);
+    background: #0f1614;
+    padding: 8px 10px;
+    border-radius: 3px;
+    font-size: 12.5px;
+  }
+  .alert-card.HIGH { border-left-color: var(--high); }
+  .alert-card.CRITICAL { border-left-color: var(--critical); }
+  .alert-card.MODERATE { border-left-color: var(--moderate); }
+  .alert-card .zone-name { font-weight: 700; font-size: 13px; }
+  .alert-card ul { margin: 6px 0 6px 16px; padding: 0; color: var(--text-dim); }
+  .alert-card .action { font-family: var(--mono); font-size: 11.5px; color: var(--text); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--panel-border); }
+  th { color: var(--text-dim); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.5px; }
+  td.mono, th.mono { font-family: var(--mono); }
+
+  #controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  select, button {
+    background: #0f1614; color: var(--text); border: 1px solid var(--panel-border);
+    padding: 7px 10px; border-radius: 3px; font-size: 12.5px; font-family: var(--sans);
+  }
+  button { cursor: pointer; font-weight: 600; }
+  button.trigger { border-color: var(--critical); color: var(--critical); }
+  button.trigger:hover { background: var(--critical); color: #111; }
+  button.clear { border-color: var(--text-dim); }
+  button.clear:hover { background: var(--text-dim); color: #111; }
+
+  .full-width { grid-column: 1 / -1; }
+  footer { text-align: center; color: var(--text-dim); font-size: 11px; padding: 20px; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .kpi-card {
+    background: #0f1614; border: 1px solid var(--panel-border); border-radius: 4px;
+    padding: 14px; text-align: center;
+  }
+  .kpi-card .kpi-value { font-family: var(--mono); font-size: 26px; color: var(--low); }
+  .kpi-card .kpi-label { font-size: 10.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+
+  /* --- Incident Timeline --- */
+  #timeline-list { display: flex; flex-direction: column; gap: 0; max-height: 340px; overflow-y: auto; }
+  .timeline-entry {
+    display: flex; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--panel-border);
+    font-size: 12px; align-items: baseline;
+  }
+  .timeline-entry:last-child { border-bottom: none; }
+  .timeline-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .timeline-dot.info { background: var(--low); }
+  .timeline-dot.warning { background: var(--moderate); }
+  .timeline-dot.critical { background: var(--critical); }
+  .timeline-time { font-family: var(--mono); color: var(--text-dim); font-size: 10.5px; white-space: nowrap; }
+  .timeline-zone { font-weight: 600; color: var(--text); }
+  .timeline-desc { color: var(--text-dim); }
+
+  /* --- Toast notifications --- */
+  #toast-container {
+    position: fixed; top: 16px; right: 16px; z-index: 1000;
+    display: flex; flex-direction: column; gap: 8px; max-width: 320px;
+  }
+  .toast {
+    background: var(--panel); border-left: 4px solid var(--moderate);
+    border-radius: 4px; padding: 10px 14px; font-size: 12.5px; color: var(--text);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    animation: toast-in 0.25s ease-out, toast-out 0.4s ease-in 4.6s forwards;
+  }
+  .toast.critical { border-left-color: var(--critical); }
+  .toast.info { border-left-color: var(--low); }
+  @keyframes toast-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes toast-out { to { opacity: 0; transform: translateX(20px); } }
+
+  .estimate-panel {
+    border: 1px dashed var(--moderate);
+    background: repeating-linear-gradient(135deg, #17140c 0 10px, #131108 10px 20px);
+  }
+  .estimate-badge {
+    display: inline-block; background: var(--moderate); color: #111; font-size: 10px;
+    font-weight: 700; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 3px; margin-left: 8px;
+  }
+  .estimate-disclaimer { font-size: 11px; color: var(--text-dim); margin-top: 10px; font-style: italic; }
+  .kpi-card.estimate .kpi-value { color: var(--moderate); }
+
+  /* --- Top Plant Health bar --- */
+  #health-bar {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+    max-width: 1400px; margin: 16px auto 0 auto; padding: 0 18px;
+  }
+  .health-card {
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 4px;
+    padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+  }
+  .health-card .emoji { font-size: 22px; }
+  .health-card .hv { font-family: var(--mono); font-size: 22px; font-weight: 700; }
+  .health-card .hl { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .health-card.good .hv { color: var(--low); }
+  .health-card.warn .hv { color: var(--moderate); }
+  .health-card.bad .hv { color: var(--critical); }
+
+  /* --- badges reused across new panels --- */
+  .badge-sim {
+    display: inline-block; background: var(--text-dim); color: #111; font-size: 9.5px;
+    font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 3px; margin-left: 8px;
+  }
+  .badge-heuristic {
+    display: inline-block; background: var(--hazard); color: #111; font-size: 9.5px;
+    font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 3px; margin-left: 8px;
+  }
+
+  /* --- Report button on alert cards --- */
+  .report-btn {
+    margin-top: 6px; font-size: 11px; padding: 4px 8px; background: transparent;
+    border: 1px solid var(--text-dim); color: var(--text); border-radius: 3px; cursor: pointer;
+  }
+  .report-btn:hover { border-color: var(--hazard); color: var(--hazard); }
+
+  /* --- Risk prediction panel --- */
+  .prediction-row { display: flex; gap: 16px; align-items: baseline; margin-top: 8px; }
+  .prediction-row .arrow { font-size: 18px; color: var(--text-dim); }
+  .prediction-block .pv { font-family: var(--mono); font-size: 20px; }
+  .prediction-block .pl { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+
+  /* --- Analytics chart --- */
+  #history-chart { width: 100%; height: 160px; display: block; background: #0f1614; border-radius: 3px; }
+  #zone-safety-table td, #zone-safety-table th { font-size: 11.5px; }
+
+  /* --- Copilot --- */
+  #copilot-log { max-height: 220px; overflow-y: auto; font-size: 12.5px; margin-bottom: 8px; }
+  .copilot-msg { margin-bottom: 8px; padding: 6px 8px; border-radius: 3px; }
+  .copilot-msg.user { background: #16201b; color: var(--text); }
+  .copilot-msg.bot { background: #0f1614; color: var(--text-dim); white-space: pre-wrap; }
+  #copilot-input-row { display: flex; gap: 6px; }
+  #copilot-input-row input { flex: 1; background: #0f1614; color: var(--text); border: 1px solid var(--panel-border); padding: 7px 10px; border-radius: 3px; font-size: 12.5px; }
+
+  /* --- Vision / PPE panel --- */
+  .ppe-row { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
+  .ppe-chip { padding: 6px 10px; border-radius: 3px; font-size: 12px; border: 1px solid var(--panel-border); }
+  .ppe-chip.ok { border-color: var(--low); color: var(--low); }
+  .ppe-chip.bad { border-color: var(--critical); color: var(--critical); }
+</style>
+</head>
+<body>
+<div id="toast-container"></div>
+
+<header>
+  <h1>ZERO-<span>HARM</span> — Plant Safety Intelligence</h1>
+  <div id="clock">LIVE</div>
+</header>
+
+<div id="health-bar">
+  <div class="health-card" id="health-card-safety"><span class="emoji">🟢</span><div><div class="hv">—</div><div class="hl">Plant Safety Score</div></div></div>
+  <div class="health-card" id="health-card-critical"><span class="emoji">🚨</span><div><div class="hv">—</div><div class="hl">Critical Zones</div></div></div>
+  <div class="health-card" id="health-card-alerts"><span class="emoji">⚠️</span><div><div class="hv">—</div><div class="hl">Active Alerts</div></div></div>
+  <div class="health-card" id="health-card-workers"><span class="emoji">👷</span><div><div class="hv">—</div><div class="hl">Workers In Danger</div></div></div>
+  <div class="health-card" id="health-card-permits"><span class="emoji">📋</span><div><div class="hv">—</div><div class="hl">Open Permits</div></div></div>
+</div>
+
+<main>
+  <div class="panel">
+    <h2>Geospatial Risk Heatmap</h2>
+    <div id="controls">
+      <select id="zone-select"></select>
+      <button class="trigger" onclick="simulateIncident()">Simulate Compound Incident</button>
+      <button class="clear" onclick="clearIncident()">Clear Incident</button>
+    </div>
+    <div id="zone-grid"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Compound Risk Alerts</h2>
+    <div id="alert-feed"></div>
+  </div>
+
+  <div class="panel full-width">
+    <h2>Gas Sensors</h2>
+    <table id="sensor-table">
+      <thead><tr><th>Sensor</th><th>Zone</th><th>Gas</th><th class="mono">ppm</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel full-width">
+    <h2>Active Permits</h2>
+    <table id="permit-table">
+      <thead><tr><th>ID</th><th>Type</th><th>Zone</th><th>Issued To</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h2>Risk Prediction <span class="badge-heuristic">HEURISTIC TREND — NOT A TRAINED MODEL</span></h2>
+    <div style="font-size:11px;color:var(--text-dim);">Straight-line projection of the selected zone's own recent score history. See the API's disclaimer field for details.</div>
+    <div class="prediction-row">
+      <div class="prediction-block"><div class="pv" id="pred-current">—</div><div class="pl">Current Risk</div></div>
+      <div class="arrow">→</div>
+      <div class="prediction-block"><div class="pv" id="pred-future">—</div><div class="pl">Predicted (15 min)</div></div>
+      <div class="prediction-block"><div class="pv" id="pred-confidence">—</div><div class="pl">Confidence (R²)</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>PPE / Restricted-Area Vision <span class="badge-sim" id="vision-mode-badge">SIMULATED</span></h2>
+    <div style="font-size:11px;color:var(--text-dim);" id="vision-note">Checking vision agent status…</div>
+    <div class="ppe-row" id="ppe-row"></div>
+  </div>
+
+  <div class="panel full-width">
+    <h2>Historical Analytics — Zone Risk Trend</h2>
+    <canvas id="history-chart" width="1200" height="160"></canvas>
+    <table id="zone-safety-table" style="margin-top:12px;">
+      <thead><tr><th>Zone</th><th>Latest Score</th><th>Latest Level</th><th class="mono">Avg (recent)</th><th class="mono">Max (recent)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel full-width">
+    <h2>Incident Timeline</h2>
+    <div id="timeline-list"><div style="color:var(--text-dim); font-size:12px;">No events yet — trigger an incident to see the timeline populate.</div></div>
+  </div>
+
+  <div class="panel full-width">
+    <h2>AI Copilot <span class="badge-sim">STRUCTURED Q&A — NOT A GENERAL LLM</span></h2>
+    <div id="copilot-log"></div>
+    <div id="copilot-input-row">
+      <input id="copilot-input" type="text" placeholder="e.g. Why is Blast Furnace Bay critical? / Show active permits" />
+      <button onclick="copilotAsk()">Ask</button>
+    </div>
+  </div>
+
+  <div class="panel full-width">
+    <h2>Evaluation Metrics — Compound Engine vs. Single-Sensor Baseline (Live)</h2>
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Loading…</div></div>
+    </div>
+  </div>
+
+  <div class="panel full-width estimate-panel">
+    <h2>Estimated Business Impact <span class="estimate-badge">ILLUSTRATIVE ESTIMATE — NOT MEASURED DATA</span></h2>
+    <div class="kpi-grid" id="impact-grid">
+      <div class="kpi-card estimate"><div class="kpi-value">—</div><div class="kpi-label">Loading…</div></div>
+    </div>
+    <div class="estimate-disclaimer" id="impact-disclaimer"></div>
+  </div>
+</main>
+
+<footer>Zero-Harm Prototype — ET AI Hackathon 2026 — Problem Statement 1 — data shown is simulated for demo purposes</footer>
+
+<script>
+const POLL_MS = 3000;
+
+async function fetchDashboard() {
+  const res = await fetch('/api/dashboard');
+  return res.json();
+}
+
+function bandLabel(level) {
+  return level;
+}
+
+function renderZones(data) {
+  const grid = document.getElementById('zone-grid');
+  const alertsByZone = {};
+  data.alerts.forEach(a => alertsByZone[a.zone_id] = a);
+
+  grid.innerHTML = '';
+  data.zones.forEach(z => {
+    const alert = alertsByZone[z.zone_id] || { score: 0, risk_level: 'LOW' };
+    const tile = document.createElement('div');
+    tile.className = `zone-tile ${alert.risk_level}`;
+    tile.innerHTML = `
+      <div class="name"><span class="dot ${alert.risk_level}"></span>${z.name}</div>
+      <div class="hazard">${z.hazard_class}</div>
+      <div class="score">${alert.score}</div>
+      <div class="band">${bandLabel(alert.risk_level)}</div>
+    `;
+    grid.appendChild(tile);
+  });
+}
+
+function renderAlerts(data) {
+  const feed = document.getElementById('alert-feed');
+  const zoneNames = {};
+  data.zones.forEach(z => zoneNames[z.zone_id] = z.name);
+
+  const relevant = data.alerts.filter(a => a.risk_level !== 'LOW');
+  feed.innerHTML = '';
+  if (relevant.length === 0) {
+    feed.innerHTML = '<div style="color:var(--text-dim); font-size:12px;">All zones nominal. No active alerts.</div>';
+    return;
+  }
+  relevant.forEach(a => {
+    const card = document.createElement('div');
+    card.className = `alert-card ${a.risk_level}`;
+    card.innerHTML = `
+      <div class="zone-name">${zoneNames[a.zone_id] || a.zone_id} — ${a.risk_level} (${a.score})</div>
+      <ul>${a.triggers.map(t => `<li>${t}</li>`).join('')}</ul>
+      <div class="action">→ ${a.recommended_action}</div>
+      <button class="report-btn" onclick="downloadReport('${a.zone_id}')">📄 Download Incident Report</button>
+    `;
+    feed.appendChild(card);
+  });
+}
+
+function renderSensors(data) {
+  const zoneNames = {};
+  data.zones.forEach(z => zoneNames[z.zone_id] = z.name);
+  const tbody = document.querySelector('#sensor-table tbody');
+  tbody.innerHTML = data.gas_readings.map(g => `
+    <tr>
+      <td class="mono">${g.sensor_id}</td>
+      <td>${zoneNames[g.zone_id] || g.zone_id}</td>
+      <td>${g.gas_type}</td>
+      <td class="mono">${g.value_ppm.toFixed(1)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderPermits(data) {
+  const zoneNames = {};
+  data.zones.forEach(z => zoneNames[z.zone_id] = z.name);
+  const tbody = document.querySelector('#permit-table tbody');
+  if (data.permits.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-dim);">No active permits</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.permits.map(p => `
+    <tr>
+      <td class="mono">${p.permit_id}</td>
+      <td>${p.permit_type.replace('_',' ')}</td>
+      <td>${zoneNames[p.zone_id] || p.zone_id}</td>
+      <td>${p.issued_to}</td>
+    </tr>
+  `).join('');
+}
+
+function populateZoneSelect(zones) {
+  const select = document.getElementById('zone-select');
+  if (select.options.length > 0) return;
+  select.innerHTML = zones.map(z => `<option value="${z.zone_id}">${z.name}</option>`).join('');
+  select.addEventListener('change', updateZoneScopedPanels);
+}
+
+// ---------------------------------------------------------------------------
+// Plant Health KPI bar
+// ---------------------------------------------------------------------------
+async function fetchKPIs() {
+  try {
+    const res = await fetch('/api/kpis');
+    const k = await res.json();
+
+    const safetyCard = document.getElementById('health-card-safety');
+    safetyCard.querySelector('.hv').textContent = `${k.plant_safety_score}%`;
+    safetyCard.querySelector('.emoji').textContent = k.plant_safety_score >= 80 ? '🟢' : (k.plant_safety_score >= 50 ? '🟡' : '🔴');
+    safetyCard.className = 'health-card ' + (k.plant_safety_score >= 80 ? 'good' : (k.plant_safety_score >= 50 ? 'warn' : 'bad'));
+
+    const critCard = document.getElementById('health-card-critical');
+    critCard.querySelector('.hv').textContent = k.critical_zones;
+    critCard.className = 'health-card ' + (k.critical_zones > 0 ? 'bad' : 'good');
+
+    const alertsCard = document.getElementById('health-card-alerts');
+    alertsCard.querySelector('.hv').textContent = k.active_alerts;
+    alertsCard.className = 'health-card ' + (k.active_alerts > 0 ? 'warn' : 'good');
+
+    const workersCard = document.getElementById('health-card-workers');
+    workersCard.querySelector('.hv').textContent = `${k.workers_in_danger} / ${k.workers_total}`;
+    workersCard.className = 'health-card ' + (k.workers_in_danger > 0 ? 'bad' : 'good');
+
+    const permitsCard = document.getElementById('health-card-permits');
+    permitsCard.querySelector('.hv').textContent = k.open_permits;
+    permitsCard.className = 'health-card good';
+  } catch (e) { /* leave last-known values on screen */ }
+}
+
+// ---------------------------------------------------------------------------
+// Incident report download
+// ---------------------------------------------------------------------------
+async function downloadReport(zoneId) {
+  const res = await fetch(`/api/report/${zoneId}`);
+  if (!res.ok) return;
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `zero-harm-incident-report-${zoneId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
+// Zone-scoped panels: risk prediction + PPE vision, tied to the zone selector
+// ---------------------------------------------------------------------------
+async function updateZoneScopedPanels() {
+  const select = document.getElementById('zone-select');
+  if (!select || !select.value) return;
+  const zoneId = select.value;
+  await Promise.all([renderPrediction(zoneId), renderVision(zoneId), renderHistoryChart(zoneId)]);
+}
+
+async function renderPrediction(zoneId) {
+  try {
+    const res = await fetch(`/api/predict/${zoneId}?horizon_minutes=15`);
+    const p = await res.json();
+    if (!p.available) {
+      document.getElementById('pred-current').textContent = '—';
+      document.getElementById('pred-future').textContent = 'warming up…';
+      document.getElementById('pred-confidence').textContent = '—';
+      return;
+    }
+    document.getElementById('pred-current').textContent = `${p.current_score} (${p.current_level})`;
+    document.getElementById('pred-future').textContent = `${p.predicted_score} (${p.predicted_level})`;
+    document.getElementById('pred-confidence').textContent = `${p.confidence_percent}%`;
+  } catch (e) { /* ignore */ }
+}
+
+let visionMode = null;
+async function fetchVisionStatusOnce() {
+  try {
+    const res = await fetch('/api/vision/status');
+    const s = await res.json();
+    visionMode = s.mode;
+    const badge = document.getElementById('vision-mode-badge');
+    const note = document.getElementById('vision-note');
+    if (s.real_model_loaded) {
+      badge.textContent = 'REAL YOLOv8 INFERENCE';
+      note.textContent = `Model loaded from ${s.model_path}.`;
+    } else {
+      badge.textContent = 'SIMULATED';
+      note.textContent = 'No trained PPE model loaded yet — showing a clearly-labelled simulated compliance signal. ' +
+        'The real YOLOv8 integration path is wired in; see backend/vision_agent.py for what\u2019s needed to make it live.';
+    }
+  } catch (e) { /* ignore */ }
+}
+
+async function renderVision(zoneId) {
+  try {
+    const res = await fetch(`/api/vision/${zoneId}`);
+    const v = await res.json();
+    const row = document.getElementById('ppe-row');
+    row.innerHTML = `
+      <div class="ppe-chip ${v.helmet_detected ? 'ok' : 'bad'}">Helmet ${v.helmet_detected ? '✅' : '❌'}</div>
+      <div class="ppe-chip ${v.safety_vest_detected ? 'ok' : 'bad'}">Safety Vest ${v.safety_vest_detected ? '✅' : '❌'}</div>
+      <div class="ppe-chip ${!v.restricted_area_entry_detected ? 'ok' : 'bad'}">Restricted Area ${v.restricted_area_entry_detected ? '🚫 Entry Detected' : 'Clear'}</div>
+    `;
+  } catch (e) { /* ignore */ }
+}
+
+// ---------------------------------------------------------------------------
+// Historical analytics — zone-wise safety table + risk trend chart
+// ---------------------------------------------------------------------------
+async function loadHistorySummary() {
+  try {
+    const res = await fetch('/api/history');
+    const h = await res.json();
+    const tbody = document.querySelector('#zone-safety-table tbody');
+    tbody.innerHTML = Object.entries(h.zone_summaries).map(([zid, s]) => `
+      <tr>
+        <td>${h.zone_names[zid] || zid}</td>
+        <td class="mono">${s.latest_score ?? '—'}</td>
+        <td>${s.latest_level ?? '—'}</td>
+        <td class="mono">${s.avg_score_recent ?? '—'}</td>
+        <td class="mono">${s.max_score_recent ?? '—'}</td>
+      </tr>
+    `).join('');
+  } catch (e) { /* ignore */ }
+}
+
+async function renderHistoryChart(zoneId) {
+  try {
+    const res = await fetch(`/api/history/${zoneId}`);
+    const h = await res.json();
+    const canvas = document.getElementById('history-chart');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, hgt = canvas.height;
+    ctx.clearRect(0, 0, w, hgt);
+
+    const points = h.points;
+    if (!points || points.length < 2) {
+      ctx.fillStyle = '#606a64';
+      ctx.font = '12px sans-serif';
+      ctx.fillText('Collecting history for ' + h.zone_name + '…', 12, hgt / 2);
+      return;
+    }
+
+    const scores = points.map(p => p.risk_score);
+    const n = scores.length;
+    const stepX = w / (n - 1);
+
+    // action-threshold guide line at score 45 (HIGH band)
+    ctx.strokeStyle = '#2a3c33';
+    ctx.beginPath();
+    const yThreshold = hgt - (45 / 100) * hgt;
+    ctx.moveTo(0, yThreshold);
+    ctx.lineTo(w, yThreshold);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#2ecc71';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    scores.forEach((s, i) => {
+      const x = i * stepX;
+      const y = hgt - (s / 100) * hgt;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle = '#839289';
+    ctx.font = '10px monospace';
+    ctx.fillText(h.zone_name + ' — compound risk score (last ' + n + ' ticks)', 8, 14);
+  } catch (e) { /* ignore */ }
+}
+
+// ---------------------------------------------------------------------------
+// AI Copilot
+// ---------------------------------------------------------------------------
+function appendCopilotMessage(role, text) {
+  const log = document.getElementById('copilot-log');
+  const div = document.createElement('div');
+  div.className = `copilot-msg ${role}`;
+  div.textContent = text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function copilotAsk() {
+  const input = document.getElementById('copilot-input');
+  const question = input.value.trim();
+  if (!question) return;
+  appendCopilotMessage('user', question);
+  input.value = '';
+  try {
+    const res = await fetch('/api/copilot/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+    const data = await res.json();
+    appendCopilotMessage('bot', data.answer);
+  } catch (e) {
+    appendCopilotMessage('bot', 'Could not reach the copilot endpoint.');
+  }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('copilot-input');
+  if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') copilotAsk(); });
+});
+
+let _knownAlertKeys = null; // null until first load, so we never toast on initial page load
+
+async function refresh() {
+
+  try {
+    const data = await fetchDashboard();
+    populateZoneSelect(data.zones);
+    renderZones(data);
+    renderAlerts(data);
+    renderSensors(data);
+    renderPermits(data);
+    checkForNewAlerts(data);
+    document.getElementById('clock').textContent = 'LIVE — ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    document.getElementById('clock').textContent = 'CONNECTION LOST';
+  }
+  fetchKPIs();
+  updateZoneScopedPanels();
+  loadHistorySummary();
+  loadTimeline();
+}
+
+function checkForNewAlerts(data) {
+  // Toast only on a genuine NEW non-LOW alert appearing, or a zone reaching
+  // CRITICAL — never fires on page load (guarded by _knownAlertKeys === null),
+  // and never fires from fabricated data — this reads the same alerts array
+  // already rendered in the Compound Risk Alerts panel.
+  const zoneNames = {};
+  data.zones.forEach(z => zoneNames[z.zone_id] = z.name);
+  const currentKeys = new Set(data.alerts.filter(a => a.risk_level !== 'LOW').map(a => `${a.zone_id}:${a.risk_level}`));
+
+  if (_knownAlertKeys !== null) {
+    data.alerts.forEach(a => {
+      const key = `${a.zone_id}:${a.risk_level}`;
+      if (a.risk_level !== 'LOW' && !_knownAlertKeys.has(key)) {
+        showToast(
+          `${a.risk_level === 'CRITICAL' ? '🔴' : '⚠️'} ${zoneNames[a.zone_id] || a.zone_id} escalated to ${a.risk_level} (score ${a.score})`,
+          a.risk_level === 'CRITICAL' ? 'critical' : 'warning'
+        );
+      }
+    });
+  }
+  _knownAlertKeys = currentKeys;
+}
+
+function showToast(message, severity = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${severity}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 5100);
+}
+
+async function loadTimeline() {
+  try {
+    const res = await fetch('/api/timeline?limit=20');
+    const events = await res.json();
+    const list = document.getElementById('timeline-list');
+    if (!events.length) {
+      list.innerHTML = '<div style="color:var(--text-dim); font-size:12px;">No events yet — trigger an incident to see the timeline populate.</div>';
+      return;
+    }
+    list.innerHTML = events.map(e => {
+      const time = new Date(e.timestamp * 1000).toLocaleTimeString();
+      return `
+        <div class="timeline-entry">
+          <div class="timeline-dot ${e.severity}"></div>
+          <div class="timeline-time">${time}</div>
+          <div><span class="timeline-zone">${e.zone_name}</span> — <span class="timeline-desc">${e.description}</span></div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    // leave existing content — a transient fetch failure shouldn't blank the panel
+  }
+}
+
+async function simulateIncident() {
+  const zoneId = document.getElementById('zone-select').value;
+  await fetch(`/api/simulate/incident/${zoneId}`, { method: 'POST' });
+  refresh();
+}
+
+async function clearIncident() {
+  const zoneId = document.getElementById('zone-select').value;
+  await fetch(`/api/simulate/clear/${zoneId}`, { method: 'POST' });
+  refresh();
+}
+
+async function loadBenchmark() {
+  try {
+    const res = await fetch('/api/benchmark');
+    const data = await res.json();
+
+    const cm = data.compound_metrics;
+    const lt = data.lead_time_stats;
+    const kpiGrid = document.getElementById('kpi-grid');
+    kpiGrid.innerHTML = `
+      <div class="kpi-card"><div class="kpi-value">${(cm.recall * 100).toFixed(0)}%</div><div class="kpi-label">Detection Rate</div></div>
+      <div class="kpi-card"><div class="kpi-value">${cm.false_negatives}</div><div class="kpi-label">False Negatives</div></div>
+      <div class="kpi-card"><div class="kpi-value">${lt.average ?? '—'} min</div><div class="kpi-label">Avg Lead Time</div></div>
+      <div class="kpi-card"><div class="kpi-value">${data.ai_bonus_max_confidence_pct}%</div><div class="kpi-label">AI Anomaly Confidence</div></div>
+    `;
+
+    const bi = data.business_impact_estimate;
+    const impactGrid = document.getElementById('impact-grid');
+    impactGrid.innerHTML = `
+      <div class="kpi-card estimate"><div class="kpi-value">${bi.estimated_additional_incidents_caught_per_year}</div><div class="kpi-label">Est. Incidents Caught / Year</div></div>
+      <div class="kpi-card estimate"><div class="kpi-value">${bi.estimated_downtime_avoided_hours_per_year}h</div><div class="kpi-label">Est. Downtime Avoided</div></div>
+      <div class="kpi-card estimate"><div class="kpi-value">₹${(bi.estimated_downtime_avoided_inr_per_year / 100000).toFixed(1)}L</div><div class="kpi-label">Est. Cost Avoided / Year</div></div>
+      <div class="kpi-card estimate"><div class="kpi-value">${bi.estimated_workers_protected_per_year}</div><div class="kpi-label">Est. Workers Protected / Year</div></div>
+    `;
+
+    document.getElementById('impact-disclaimer').textContent =
+      `${bi.disclaimer} Assumptions: ${bi.assumptions.assumed_annual_compound_risk_events} compound-risk events/year, ` +
+      `${bi.assumptions.assumed_avg_downtime_hours_per_incident}h downtime/incident, ` +
+      `₹${bi.assumptions.assumed_downtime_cost_per_hour_inr.toLocaleString('en-IN')}/hour — ` +
+      `applied to the measured ${(bi.assumptions.measured_recall_improvement * 100).toFixed(0)}% detection-rate improvement.`;
+  } catch (e) {
+    document.getElementById('kpi-grid').innerHTML = '<div style="color:var(--text-dim); font-size:12px;">Could not load benchmark data.</div>';
+  }
+}
+
+refresh();
+setInterval(refresh, POLL_MS);
+loadBenchmark();
+fetchVisionStatusOnce();
+loadHistorySummary();
+</script>
+</body>
+</html>
